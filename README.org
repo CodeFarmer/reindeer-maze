@@ -1,0 +1,14 @@
+Start ClojureScript compilation:
+
+#+BEGIN_SRC sh
+lein cljs
+#+END_SRC
+
+Start the webserver:
+
+#+BEGIN_SRC sh
+lein repl
+> (load "reindeer-maze/webserver")
+#+END_SRC
+
+Open [[http://localhost:8000]] and check the console.

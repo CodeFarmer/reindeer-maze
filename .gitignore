@@ -1,0 +1,6 @@
+/resources/public/cljs/
+/.lein-repl-history
+/.nrepl-port
+/target/
+/out/
+/repl/
