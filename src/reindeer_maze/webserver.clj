@@ -3,11 +3,11 @@
             [clojure.core.async :refer [chan go >! <!]]
             [ring.util.response :as response]
             [ring.adapter.jetty :as jetty]
-            [ring.middleware.json :as ring-json]
             [ring.util.response :refer [response]]
             [compojure.handler :as handler]
             [compojure.route :as route]
             [compojure.core :refer :all]
+            [maze.generate :refer [generate-maze]]
             [com.keminglabs.jetty7-websockets-async.core :refer [configurator]]))
 
 (defn log
@@ -23,17 +23,7 @@
                       :repsonse (select-keys response [:status :content-type])})
       response)))
 
-(defroutes api-routes
-  (GET "/test"
-       {params :query-params}
-       (response (merge params
-                        {:now (java.util.Date.)}))))
-
 (defroutes app-routes
-  (context "/api" [] (-> api-routes
-                         (ring-json/wrap-json-body {:keywords? true})
-                         (ring-json/wrap-json-response :pretty true)))
-
   (GET "/" [] (response/redirect "/index.html"))
 
   (route/resources "/"))
@@ -56,5 +46,9 @@
 
 (go (loop []
       (let [ws-req (<! server-channel)]
-        (>! (:in ws-req) (pr-str [:thing (java.util.Date.) "Hello new websocket client!"]))
+        (>! (:in ws-req) (pr-str
+                          (generate-maze [81 51])
+                          #_[:thing (java.util.Date.) "Hello new websocket client!"]
+                          ))
         (recur))))
+
