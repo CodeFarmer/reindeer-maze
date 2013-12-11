@@ -27,6 +27,7 @@
                  ;; ClojureScript
                  [org.clojure/clojurescript "0.0-2080"]
                  [enfocus "2.0.2"]]
+  :main reindeer-maze.core
   :profiles {:dev {:dependencies [[ring-mock "0.1.5"]]}
              :prod {:ring {:auto-reload? false}}}
   :resources-path "resources"

@@ -1,6 +1,7 @@
 (ns reindeer-maze.core
   (require [maze.generate :refer [generate-maze wall?]]
            [clojure.pprint :refer [pprint]]
+           [clojure.edn :as edn]
            [clojure.string :as string]
            [clojure.core.async :refer [go chan <! >!]]
            [reindeer-maze.navigation :refer :all]
@@ -11,9 +12,9 @@
   (:import [java.net ServerSocket SocketException]
            [java.io BufferedReader InputStreamReader]))
 
-;; TODO Win Condition.
-;; TODO Next Round.
-;; TODO Legend
+(defn writeln
+  [output-stream string]
+  (.write output-stream (.getBytes (str string "\n") "UTF-8")))
 
 (defn wall-coordinates
   [maze]
@@ -26,7 +27,6 @@
   "The board is the state of a single game."
   (atom {:maze []
          :players {}}))
-
 
 (defn scramble-player-positions
   [board]
@@ -117,10 +117,6 @@
               player-data
               {:points points}))
 
-(update-in (find-player-by-name "Kris!") [1]
-           apply-points
-            10)
-
 (defn draw
   []
   ;; Background
@@ -178,17 +174,7 @@
           size
           (* size (+ 1 (count maze))))))
 
-(defsketch reindeer-maze
-  :title "Reindeer Maze"
-  :size [1000 750]
-  :setup setup
-  :draw draw)
-
 (def sleep-time-ms 100)
-
-(defn writeln
-  [output-stream string]
-  (.write output-stream (.getBytes (str string "\n") "UTF-8")))
 
 (defn join-maze!
   [socket name]
@@ -208,11 +194,6 @@
              (= name the-name))
            (:players board))))
 
-(defn kill-player-by-name!
-  [board name]
-  (leave-maze!  (first(find-player-by-name board name))))
-(kill-player-by-name! @current-board "java rules ok")
-
 (defn leave-maze!
   [socket]
   (swap! current-board
@@ -221,6 +202,10 @@
            (update-in board [:players]
                       dissoc socket)))
   (.close socket))
+
+(defn kill-player-by-name!
+  [board name]
+  (leave-maze! (first(find-player-by-name board name))))
 
 (defn kill-all-players!
   []
@@ -300,8 +285,6 @@
               :hit "X"
               "?"))))
 
-(pprint (:players @current-board))
-
 (defn apply-scoring
   [{present-position :present-position
     :as board}]
@@ -375,11 +358,20 @@
       .start)
     server-socket))
 
-(defonce server
-  (create-server :port 8080
-                 :client-handler #'client-handler))
+(defn -main
+  ([] (println "USAGE: lein run <port>"))
+  
+  ([port-number-as-string]
+     (let [port-number (edn/read-string port-number-as-string)]
+       (assert (int port-number))
 
-;; (.close server)
-(new-board! [61 47])                    ;
-(kill-all-players!)
+       (new-board! [21 31])
 
+       (create-server :port port-number
+                      :client-handler #'client-handler)
+
+       (defsketch reindeer-maze
+         :title "Reindeer Maze"
+         :size [1000 750]
+         :setup setup
+         :draw draw))))
