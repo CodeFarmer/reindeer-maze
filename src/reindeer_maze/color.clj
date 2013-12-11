@@ -1,7 +1,7 @@
 (ns reindeer-maze.color)
 
 (def palette
-  [[249 244 38]
+  [[0 0 0]
    [189 230 35]
    [47 209 32]
    [32 191 207]

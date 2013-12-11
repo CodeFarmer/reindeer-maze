@@ -4,7 +4,7 @@
                  [org.clojure/clojure "1.5.1"]
                  [org.clojure/core.async "0.1.242.0-44b1e3-alpha"]
 
-                 [maze "0.1.0"]
+                 [maze "0.2.0"]
                  [quil "1.6.0"]
 
                  ;; Web

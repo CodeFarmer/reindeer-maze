@@ -12,9 +12,8 @@
            [java.io BufferedReader InputStreamReader]))
 
 ;; TODO Win Condition.
-;; TODO Distance to treasure.
 ;; TODO Next Round.
-;; TODO Help
+;; TODO Legend
 
 (defn wall-coordinates
   [maze]
@@ -28,6 +27,19 @@
   (atom {:maze []
          :players {}}))
 
+
+(defn scramble-player-positions
+  [board]
+  (let [{maze :maze
+         players :players} board]
+    (merge board
+           {:players (apply merge (for [[socket data] players]
+                                    (do
+                                      (writeln (.getOutputStream socket) "NEW MAZE!")
+                                      {socket (update-in data [:position] (fn [_]
+                                                                            (random-free-position maze)
+                                                                            ))})))})))
+
 (defn new-board!
   [size]
   (swap! current-board
@@ -35,10 +47,10 @@
            (let [center (map (fn [x] (make-odd (int (/ x 2))))
                              size)
                  maze (generate-maze size center)]
-             (merge board
-                    {:maze maze
-                     :present-position center}))))
-  ;; TODO Reset player position too!
+             (-> board
+                 (merge {:maze maze
+                         :present-position center})
+                 scramble-player-positions))))
   :ok)
 
 (defn path-between
@@ -94,10 +106,20 @@
 
 (defn setup []
   (smooth)
+  (text-font (create-font "Courier New-Bold" 22 true))
   (frame-rate 5)
   (set-state! :board #'current-board)
-  (text-font (create-font "Courier New-Bold" 48 true))
   (background 200))
+
+(defn apply-points
+  [player-data points]
+  (merge-with +
+              player-data
+              {:points points}))
+
+(update-in (find-player-by-name "Kris!") [1]
+           apply-points
+            10)
 
 (defn draw
   []
@@ -132,24 +154,33 @@
     
     ;; Legend
     (doseq [[index [_ {[r g b] :color
-                       name :name}]] (indexed players)]
-      (let [text-offset-x size
-            text-offset-y (* size (+ 3 index (count maze)))]
+                       points :points
+                       name :name
+                       :or {points 0}}]] (indexed players)]
+      (let [dot-offset-x (+ size (* (quot index 3) 300))
+            dot-offset-y (* size (+ 2 (rem index 3) (count maze)))
+            text-offset-x (+ size dot-offset-x)
+            text-offset-y dot-offset-y]
         (fill r g b)
         (stroke 0)
-        (quil-dot 1 (+ 2 index (count maze)) size)
-        (text name (* 2.5 size) text-offset-y)))
+        (ellipse dot-offset-x
+                 dot-offset-y
+                 size
+                 size)
+        (text (format "%d %s"
+                      points
+                      name) text-offset-x text-offset-y)))
     
     ;; Instructions
     (fill 0)
     (stroke 0)
-    (text (format "rdcp://%s:%d/" (my-ip) 80)
+    (text (format "rdcp://%s:%d/" (my-ip) 8080)
           size
           (* size (+ 1 (count maze))))))
 
 (defsketch reindeer-maze
   :title "Reindeer Maze"
-  :size [875 750]
+  :size [1000 750]
   :setup setup
   :draw draw)
 
@@ -170,6 +201,17 @@
                                        :color (first (shuffle palette))
                                        :position (random-free-position maze)}})))
     :ok))
+
+(defn find-player-by-name
+  [board the-name]
+  (first (filter (fn [[socket {name :name}]]
+             (= name the-name))
+           (:players board))))
+
+(defn kill-player-by-name!
+  [board name]
+  (leave-maze!  (first(find-player-by-name board name))))
+(kill-player-by-name! @current-board "java rules ok")
 
 (defn leave-maze!
   [socket]
@@ -229,6 +271,14 @@
                    (update-in board [:players socket :position] (constantly new-position))
                    )))))))
 
+(defn winner?
+  [{players :players
+    present-position :present-position
+    :as board}]
+  (filter (fn [[socket {position :position}]]
+            (= position present-position))
+          players))
+
 (defn possible-moves-for-player
   [socket]
   (let [{maze :maze
@@ -246,9 +296,33 @@
               :north "N"
               :south "S"
               :west "W"
-              :east "W"
+              :east "E"
               :hit "X"
               "?"))))
+
+(pprint (:players @current-board))
+
+(defn apply-scoring
+  [{present-position :present-position
+    :as board}]
+  (update-in board [:players]
+             (fn [players]
+               (apply merge (for [[socket {position :position
+                                           :as data} :as player] players]
+                              {socket (if (not= position present-position)
+                                        data
+                                        (merge-with + data {:points 10})
+                                        )})))))
+
+(defn handle-scoring
+  []
+  
+  (swap! current-board (fn [board]
+                         (when-let [winners (winner? board)]
+                           (println "WINNER!")
+                           board
+                           )))
+  )
 
 (defn client-handler
   [socket]
@@ -258,6 +332,11 @@
      (writeln out "Language/team name?")
      (let [name (.readLine in)]
        ;; Join maze
+       #_(when (= name "java rules ok")
+         (writeln out "Fuck off!\n")
+
+         (throw (Exception. "Fuck off!"))
+         )
        (join-maze! socket name)
 
        (try
@@ -266,6 +345,7 @@
            
            ;; Handle response.
            (maze-request-handler socket (.readLine in))
+           (handle-scoring)
            (writeln out (formatted-possible-moves-for-player socket))
 
            ;; Sleep
@@ -300,3 +380,6 @@
                  :client-handler #'client-handler))
 
 ;; (.close server)
+(new-board! [61 47])                    ;
+(kill-all-players!)
+
