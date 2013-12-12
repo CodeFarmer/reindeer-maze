@@ -1,6 +1,6 @@
 (ns reindeer-maze.net
-  (:import [java.io OutputStream BufferedReader InputStreamReader OutputStream]
-           [java.net Socket]))
+  (:import [java.io BufferedReader InputStreamReader OutputStream]
+           [java.net Socket InetAddress]))
 
 (defprotocol IWritable
   (write-to [this str]))
@@ -26,3 +26,9 @@
         InputStreamReader.
         BufferedReader.
         .readLine)))
+
+(defn my-ip
+  "Return the IP address of the current process."
+  []
+  (-> (InetAddress/getLocalHost)
+      .getHostAddress))

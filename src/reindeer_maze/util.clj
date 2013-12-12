@@ -1,5 +1,4 @@
-(ns reindeer-maze.util
-  (:import [java.net InetAddress]))
+(ns reindeer-maze.util)
 
 (defn indexed
   [coll]
@@ -12,8 +11,3 @@
     (if (odd? x-int)
       x-int
       (inc x-int))))
-
-(defn my-ip
-  []
-  (-> (InetAddress/getLocalHost)
-      .getHostAddress))
