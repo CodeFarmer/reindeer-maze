@@ -2,7 +2,8 @@
   (:require [clojure.edn :as edn]
             [clojure.string :refer [join trim lower-case]]
             [maze.generate :refer [generate-maze]]
-            [quil.core :refer [background create-font defsketch ellipse
+            [quil.applet :refer [defapplet]]
+            [quil.core :refer [background create-font ellipse
                                fill frame-rate height rect set-state!
                                smooth state stroke text text-font
                                width]]
@@ -289,11 +290,13 @@
 
        (new-board! [21 31])
 
-       (create-server :port port-number
-                      :client-handler #'client-handler)
+       (let [server (create-server :port port-number
+                                   :client-handler #'client-handler)
+             shutdown-fn (fn [] (.stop server))]
 
-       (defsketch reindeer-maze
-         :title "Reindeer Maze"
-         :size [1000 750]
-         :setup quil-setup
-         :draw quil-draw))))
+         (defapplet reindeer-maze
+           :title "Reindeer Maze"
+           :size [1000 750]
+           :setup quil-setup
+           :draw quil-draw
+           :on-close shutdown-fn)))))
