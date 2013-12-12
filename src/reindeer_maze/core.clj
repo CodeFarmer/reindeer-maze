@@ -1,17 +1,23 @@
 (ns reindeer-maze.core
-  (require [maze.generate :refer [generate-maze wall?]]
-           [clojure.pprint :refer [pprint]]
-           [clojure.edn :as edn]
-           [clojure.string :as string]
-           [clojure.core.async :refer [go chan <! >!]]
-           [reindeer-maze.navigation :refer :all]
-           [reindeer-maze.util :refer :all]
-           [reindeer-maze.net :refer :all]
-           [reindeer-maze.color :refer [palette]]
-           [reindeer-maze.render :refer :all]
-           [quil.core :refer :all])
-  (import [java.net Socket ServerSocket SocketException]
-          [java.io BufferedReader InputStreamReader OutputStream]))
+  (:require [clojure.core.async :refer [go]]
+            [clojure.edn :as edn]
+            [clojure.string :as string]
+            [maze.generate :refer [generate-maze]]
+            [quil.core :refer [background create-font defsketch ellipse
+                               fill frame-rate height rect set-state!
+                               smooth state stroke text text-font
+                               width]]
+            [reindeer-maze.color :refer [palette]]
+            [reindeer-maze.navigation :refer [path-between
+                                              possible-moves
+                                              random-free-position
+                                              wall-coordinates]]
+            [reindeer-maze.net :refer [read-from writeln my-ip]]
+            [reindeer-maze.render :refer [quil-block
+                                          quil-dot
+                                          quil-tree]]
+            [reindeer-maze.util :refer [indexed make-odd]])
+  (:import [java.net ServerSocket]))
 
 (def sleep-time-ms 100)
 
