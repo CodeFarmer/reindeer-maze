@@ -291,12 +291,11 @@
        (new-board! [21 31])
 
        (let [server (create-server :port port-number
-                                   :client-handler #'client-handler)
-             shutdown-fn (fn [] (.stop server))]
+                                   :client-handler #'client-handler)]
 
          (defapplet reindeer-maze
            :title "Reindeer Maze"
            :size [1000 750]
            :setup quil-setup
            :draw quil-draw
-           :on-close shutdown-fn)))))
+           :on-close (fn [] (.stop server)))))))
