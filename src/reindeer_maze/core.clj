@@ -1,7 +1,7 @@
 (ns reindeer-maze.core
   (:require [clojure.core.async :refer [go]]
             [clojure.edn :as edn]
-            [clojure.string :as string]
+            [clojure.string :refer [join trim lower-case]]
             [maze.generate :refer [generate-maze]]
             [quil.core :refer [background create-font defsketch ellipse
                                fill frame-rate height rect set-state!
@@ -158,22 +158,22 @@
     (leave-maze! socket)))
 
 (def help-text
-  (string/join "\n"
-               ["===="
-                "Help:"
-                "-----"
-                "Type N, E, S or W to move."
-                ""
-                "I will normally answer something like, 'N6 E0 S2 W0 P?',"
-                "which means I can move north for 6 squares, south for 2,"
-                "and I can't see the presents;"
-                "or 'N0 E4 S0 W0 PE', which means I can move east for 4 squares"
-                "and I can see the presents to the east."
-                ""
-                ""
-                "If I say 'WIN' or 'LOSE', this round is over, and we're"
-                "going straight on to the next."
-                "===="]))
+  (join "\n"
+        ["===="
+         "Help:"
+         "-----"
+         "Type N, E, S or W to move."
+         ""
+         "I will normally answer something like, 'N6 E0 S2 W0 P?',"
+         "which means I can move north for 6 squares, south for 2,"
+         "and I can't see the presents;"
+         "or 'N0 E4 S0 W0 PE', which means I can move east for 4 squares"
+         "and I can see the presents to the east."
+         ""
+         ""
+         "If I say 'WIN' or 'LOSE', this round is over, and we're"
+         "going straight on to the next."
+         "===="]))
 
 (defn write-help
   [socket]
@@ -184,8 +184,8 @@
   [socket request]
   (if request
     (if-let [direction (case (-> request
-                                 string/trim
-                                 string/lower-case)
+                                 trim
+                                 lower-case)
                          "n" [0 -1]
                          "s" [0 1]
                          "e" [1 0]
