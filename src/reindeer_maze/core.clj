@@ -15,10 +15,6 @@
 
 (def sleep-time-ms 100)
 
-(defn writeln
-  [destination string]
-  (write destination (str string "\n")))
-
 (def current-board
   "The board is the state of a single game."
   (atom {:maze []
@@ -31,7 +27,7 @@
     (merge board
            {:players (apply merge (for [[socket data] players]
                                     (do
-                                      (writeln (.getOutputStream socket) "NEW MAZE!")
+                                      (writeln socket "NEW MAZE!")
                                       {socket (update-in data [:position] (fn [_]
                                                                             (random-free-position maze)))})))})))
 
@@ -175,7 +171,7 @@
 
 (defn write-help
   [socket]
-  (writeln (.getOutputStream socket) help-text))
+  (writeln socket help-text))
 
 (defn maze-request-handler
   "Takes a string request (which may be nil), and applies it."
@@ -243,42 +239,32 @@
 
 (defn handle-scoring
   []
-  
   (swap! current-board (fn [board]
                          (when-let [winners (winner? board)]
                            (println "WINNER!")
-                           board
-                           )))
-  )
+                           board))))
 
 (defn client-handler
   [socket]
-  (let [out (.getOutputStream socket)
-        in (BufferedReader. (InputStreamReader. (.getInputStream socket)))]
-    (go
-     (writeln out "Language/team name?")
-     (let [name (.readLine in)]
-       ;; Join maze
-       #_(when (= name "java rules ok")
-         (writeln out "Fuck off!\n")
+  (go
+   (writeln socket "Language/team name?")
+   (let [name (read-from socket)]
+     ;; Join maze
+     (join-maze! socket name)
 
-         (throw (Exception. "Fuck off!"))
-         )
-       (join-maze! socket name)
+     (try
+       (writeln socket (formatted-possible-moves-for-player socket))
+       (while true
+         
+         ;; Handle response.
+         (maze-request-handler socket (read-from socket))
+         (handle-scoring)
+         (writeln socket (formatted-possible-moves-for-player socket))
 
-       (try
-         (writeln out (formatted-possible-moves-for-player socket))
-         (while true
-           
-           ;; Handle response.
-           (maze-request-handler socket (.readLine in))
-           (handle-scoring)
-           (writeln out (formatted-possible-moves-for-player socket))
-
-           ;; Sleep
-           (Thread/sleep sleep-time-ms))
-         (catch Exception e
-           (leave-maze! socket)))))))
+         ;; Sleep
+         (Thread/sleep sleep-time-ms))
+       (catch Exception e
+         (leave-maze! socket))))))
 
 (defn create-server
   [& {:keys [port client-handler]}]
