@@ -12,16 +12,11 @@
   (:import [java.net ServerSocket SocketException]
            [java.io BufferedReader InputStreamReader]))
 
+(def sleep-time-ms 100)
+
 (defn writeln
   [output-stream string]
   (.write output-stream (.getBytes (str string "\n") "UTF-8")))
-
-(defn wall-coordinates
-  [maze]
-  (for [[y row] (indexed maze)
-        [x cell] (indexed row)
-        :when (not (nil? cell))]
-    [x y]))
 
 (def current-board
   "The board is the state of a single game."
@@ -37,8 +32,7 @@
                                     (do
                                       (writeln (.getOutputStream socket) "NEW MAZE!")
                                       {socket (update-in data [:position] (fn [_]
-                                                                            (random-free-position maze)
-                                                                            ))})))})))
+                                                                            (random-free-position maze)))})))})))
 
 (defn new-board!
   [size]
@@ -53,58 +47,8 @@
                  scramble-player-positions))))
   :ok)
 
-(defn path-between
-  "If there is a straight-line, uninterrupted path between [x1 y1] and [x2 y2], returns the direction as a keyword.
-   Otherwise, returns nil."
-  [[x1 y1] [x2 y2] maze]
-  (cond
-   (and (= x1 x2)
-        (= y1 y2)) :hit
-   (and (not= x1 x2)
-        (not= y1 y2)) nil
-   
-   (= y1 y2) (let [moves (possible-moves maze [x1 y1])]
-               (cond
-                (<= 0 (- x2 x1) (:east moves)) :east
-                (<= 0 (- x1 x2) (:west moves)) :west
-                ))
-   (= x1 x2) (let [moves (possible-moves maze [x1 y1])]
-               (cond
-                (<= 0 (- y1 y2) (:north moves)) :north
-                (<= 0 (- y2 y1) (:south moves)) :south
-                ))))
 
-(defn quil-tree
-  [x y size]
-  (let [left (* size x)
-        top (* size y)
-        right (+ left size)
-        bottom (+ top size)
-        midline (+ top (* 0.66 size))]
-    (triangle left bottom
-              right bottom
-              (/ (+ left right) 2) top)
-    (triangle left midline
-              right midline
-              (/ (+ left right) 2) top)))
-
-(defn quil-block
-  [x y size]
-  (rect (* size x)
-        (* size y)
-        size
-        size))
-
-(defn quil-dot
-  [x y size]
-  (ellipse (+ (* size x)
-              (/ size 2))
-           (+ (* size y)
-              (/ size 2))
-           size
-           size))
-
-(defn setup []
+(defn quil-setup []
   (smooth)
   (text-font (create-font "Courier New-Bold" 22 true))
   (frame-rate 5)
@@ -117,7 +61,7 @@
               player-data
               {:points points}))
 
-(defn draw
+(defn quil-draw
   []
   ;; Background
   (fill 255)
@@ -173,8 +117,6 @@
     (text (format "rdcp://%s:%d/" (my-ip) 8080)
           size
           (* size (+ 1 (count maze))))))
-
-(def sleep-time-ms 100)
 
 (defn join-maze!
   [socket name]
@@ -336,17 +278,6 @@
          (catch Exception e
            (leave-maze! socket)))))))
 
-;;; start a server that runs while true.
-;;; Accept, hand off to thread.
-;;; Client thread reads & writes into game.
-;;
-;;; C opens a connection to S
-;;; Server says, "Name?"
-;;; C replies.
-;;; S says "N 5,E 0,S 0,W 2,G ?"
-;;; C replies N/E/S/W.
-;;; S says "N 4,E 5,S 1,W 0,G E"
-
 (defn create-server
   [& {:keys [port client-handler]}]
   (let [server-socket (ServerSocket. port)]
@@ -373,5 +304,5 @@
        (defsketch reindeer-maze
          :title "Reindeer Maze"
          :size [1000 750]
-         :setup setup
-         :draw draw))))
+         :setup quil-setup
+         :draw quil-draw))))

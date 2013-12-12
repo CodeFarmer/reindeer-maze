@@ -1,4 +1,5 @@
-(ns reindeer-maze.navigation)
+(ns reindeer-maze.navigation
+  (:require [reindeer-maze.util :refer :all]))
 
 (defn count-steps-east
   [row x]
@@ -38,3 +39,31 @@
     (if (nil? cell)
       position
       (recur maze))))
+
+(defn path-between
+  "If there is a straight-line, uninterrupted path between [x1 y1] and [x2 y2], returns the direction as a keyword.
+   Otherwise, returns nil."
+  [[x1 y1] [x2 y2] maze]
+  (cond
+   (and (= x1 x2)
+        (= y1 y2)) :hit
+   (and (not= x1 x2)
+        (not= y1 y2)) nil
+   
+   (= y1 y2) (let [moves (possible-moves maze [x1 y1])]
+               (cond
+                (<= 0 (- x2 x1) (:east moves)) :east
+                (<= 0 (- x1 x2) (:west moves)) :west
+                ))
+   (= x1 x2) (let [moves (possible-moves maze [x1 y1])]
+               (cond
+                (<= 0 (- y1 y2) (:north moves)) :north
+                (<= 0 (- y2 y1) (:south moves)) :south
+                ))))
+
+(defn wall-coordinates
+  [maze]
+  (for [[y row]  (indexed maze)
+        [x cell] (indexed row)
+        :when (not (nil? cell))]
+    [x y]))
