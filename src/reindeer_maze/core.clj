@@ -125,7 +125,7 @@
   (do
     (swap! current-board
            (fn [{maze :maze
-                 :as board}]
+                :as board}]
              (update-in board [:players]
                         merge {socket {:name name
                                        :color (first (shuffle palette))
@@ -135,21 +135,21 @@
 (defn find-player-by-name
   [board the-name]
   (first (filter (fn [[socket {name :name}]]
-             (= name the-name))
-           (:players board))))
+                   (= name the-name))
+                 (:players board))))
 
 (defn leave-maze!
   [socket]
   (swap! current-board
          (fn [{maze :maze
-               :as board}]
+              :as board}]
            (update-in board [:players]
                       dissoc socket)))
   (.close socket))
 
 (defn kill-player-by-name!
   [board name]
-  (leave-maze! (first(find-player-by-name board name))))
+  (leave-maze! (first (find-player-by-name board name))))
 
 (defn kill-all-players!
   []
