@@ -1,6 +1,5 @@
 (ns reindeer-maze.core
-  (:require [clojure.core.async :refer [go]]
-            [clojure.edn :as edn]
+  (:require [clojure.edn :as edn]
             [clojure.string :refer [join trim lower-case]]
             [maze.generate :refer [generate-maze]]
             [quil.core :refer [background create-font defsketch ellipse
@@ -252,25 +251,24 @@
 
 (defn client-handler
   [socket]
-  (go
-   (writeln socket "Language/team name?")
-   (let [name (read-from socket)]
-     ;; Join maze
-     (join-maze! socket name)
+  (writeln socket "Language/team name?")
+  (let [name (read-from socket)]
+    ;; Join maze
+    (join-maze! socket name)
 
-     (try
-       (writeln socket (formatted-possible-moves-for-player socket))
-       (while true
-         
-         ;; Handle response.
-         (maze-request-handler socket (read-from socket))
-         (handle-scoring)
-         (writeln socket (formatted-possible-moves-for-player socket))
+    (try
+      (writeln socket (formatted-possible-moves-for-player socket))
+      (while true
+        
+        ;; Handle response.
+        (maze-request-handler socket (read-from socket))
+        (handle-scoring)
+        (writeln socket (formatted-possible-moves-for-player socket))
 
-         ;; Sleep
-         (Thread/sleep sleep-time-ms))
-       (catch Exception e
-         (leave-maze! socket))))))
+        ;; Sleep
+        (Thread/sleep sleep-time-ms))
+      (catch Exception e
+        (leave-maze! socket)))))
 
 (defn create-server
   [& {:keys [port client-handler]}]
