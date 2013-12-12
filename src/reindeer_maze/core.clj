@@ -154,26 +154,27 @@
   (doseq [[socket _] (:players @current-board)]
     (leave-maze! socket)))
 
+(def help-text
+  (string/join "\n"
+               ["===="
+                "Help:"
+                "-----"
+                "Type N, E, S or W to move."
+                ""
+                "I will normally answer something like, 'N6 E0 S2 W0 P?',"
+                "which means I can move north for 6 squares, south for 2,"
+                "and I can't see the presents;"
+                "or 'N0 E4 S0 W0 PE', which means I can move east for 4 squares"
+                "and I can see the presents to the east."
+                ""
+                ""
+                "If I say 'WIN' or 'LOSE', this round is over, and we're"
+                "going straight on to the next."
+                "===="]))
+
 (defn write-help
   [socket]
-  (writeln (.getOutputStream socket)
-           (string/join "\n" [
-                                "===="
-                                "Help:"
-                                "-----"
-                                "Type N, E, S or W to move."
-                                ""
-                                "I will normally answer something like, 'N6 E0 S2 W0 P?',"
-                                "which means I can move north for 6 squares, south for 2,"
-                                "and I can't see the presents;"
-                                "or 'N0 E4 S0 W0 PE', which means I can move east for 4 squares"
-                                "and I can see the presents to the east."
-                                ""
-                                ""
-                                "If I say 'WIN' or 'LOSE', this round is over, and we're"
-                                "going straight on to the next."
-                                "===="
-                                ])))
+  (writeln (.getOutputStream socket) help-text))
 
 (defn maze-request-handler
   "Takes a string request (which may be nil), and applies it."
