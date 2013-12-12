@@ -6,17 +6,18 @@
            [clojure.core.async :refer [go chan <! >!]]
            [reindeer-maze.navigation :refer :all]
            [reindeer-maze.util :refer :all]
+           [reindeer-maze.net :refer :all]
            [reindeer-maze.color :refer [palette]]
            [reindeer-maze.render :refer :all]
            [quil.core :refer :all])
-  (:import [java.net ServerSocket SocketException]
-           [java.io BufferedReader InputStreamReader]))
+  (import [java.net Socket ServerSocket SocketException]
+          [java.io BufferedReader InputStreamReader OutputStream]))
 
 (def sleep-time-ms 100)
 
 (defn writeln
-  [output-stream string]
-  (.write output-stream (.getBytes (str string "\n") "UTF-8")))
+  [destination string]
+  (write destination (str string "\n")))
 
 (def current-board
   "The board is the state of a single game."
