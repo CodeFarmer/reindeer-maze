@@ -15,7 +15,7 @@
             [reindeer-maze.render :refer [quil-block
                                           quil-dot
                                           quil-tree]]
-            [reindeer-maze.util :refer [indexed make-odd]])
+            [reindeer-maze.util :refer [indexed make-odd in-thread until]])
   (:import [java.net ServerSocket]))
 
 (def sleep-time-ms 100)
@@ -272,14 +272,13 @@
 
 (defn create-server
   [& {:keys [port client-handler]}]
-  (let [server-socket (ServerSocket. port)]
-    (doto (Thread. (fn []
-                     (while (not (.isClosed server-socket))
-                       (let [socket (.accept server-socket)]
-                         (.start
-                          (Thread. (fn [] (#'client-handler socket))))))))
-      .start)
-    server-socket))
+  (in-thread
+   (let [server-socket (ServerSocket. port)]
+     (until (.isClosed server-socket)
+            (let [socket (.accept server-socket)]
+              (in-thread
+               (client-handler socket))))
+     server-socket)))
 
 (defn -main
   ([] (println "USAGE: lein run <port>"))
