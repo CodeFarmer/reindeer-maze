@@ -57,12 +57,6 @@
 
   (set-state! :board #'current-board))
 
-(defn apply-points
-  [player-data points]
-  (merge-with +
-              player-data
-              {:points points}))
-
 (defn quil-draw
   []
   ;; Background
@@ -96,9 +90,7 @@
 
     ;; Legend
     (doseq [[index [_ {[r g b] :color
-                       points :points
-                       name :name
-                       :or {points 0}}]] (indexed players)]
+                       name :name}]] (indexed players)]
       (let [dot-offset-x (+ size (* (quot index 3) 300))
             dot-offset-y (* size (+ 2 (rem index 3) (count maze)))
             text-offset-x (+ size dot-offset-x)
@@ -109,10 +101,8 @@
                  dot-offset-y
                  size
                  size)
-        (text (format "%d %s"
-                      points
-                      name) text-offset-x text-offset-y)))
-    
+        (text name text-offset-x text-offset-y)))
+
     ;; Instructions
     (fill 0)
     (stroke 0)
@@ -233,25 +223,6 @@
               :hit "X"
               "?"))))
 
-(defn apply-scoring
-  [{present-position :present-position
-    :as board}]
-  (update-in board [:players]
-             (fn [players]
-               (apply merge (for [[socket {position :position
-                                           :as data} :as player] players]
-                              {socket (if (not= position present-position)
-                                        data
-                                        (merge-with + data {:points 10})
-                                        )})))))
-
-(defn handle-scoring
-  []
-  (swap! current-board (fn [board]
-                         (when-let [winners (winner? board)]
-                           (println "WINNER!")
-                           board))))
-
 (defn client-handler
   [socket]
   (writeln socket "Language/team name?")
@@ -267,7 +238,6 @@
       (while true
         ;; Handle response.
         (maze-request-handler socket (read-from socket))
-        (handle-scoring)
         (writeln socket (formatted-possible-moves-for-player socket))
 
         ;; Sleep
