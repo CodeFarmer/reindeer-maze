@@ -53,8 +53,9 @@
   (smooth)
   (text-font (create-font "Courier New-Bold" 22 true))
   (frame-rate 5)
-  (set-state! :board #'current-board)
-  (background 200))
+  (background 200)
+
+  (set-state! :board #'current-board))
 
 (defn apply-points
   [player-data points]
