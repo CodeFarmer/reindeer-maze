@@ -178,28 +178,30 @@
   [socket]
   (writeln socket help-text))
 
+(defn command-to-movement
+  [request]
+  (case (-> request
+            trim
+            lower-case)
+    "n" [0 -1]
+    "s" [0 1]
+    "e" [1 0]
+    "w" [-1 0]
+    nil))
+
 (defn maze-request-handler
   "Takes a string request (which may be nil), and applies it."
   [socket request]
   (if request
-    (if-let [direction (case (-> request
-                                 trim
-                                 lower-case)
-                         "n" [0 -1]
-                         "s" [0 1]
-                         "e" [1 0]
-                         "w" [-1 0]
-                         (do
-                           (write-help socket)
-                           [0 0]))]
+    (if-let [direction (command-to-movement request)]
       (swap! current-board
              (fn [board]
                (let [current-position (get-in board [:players socket :position])
                      new-position (map + current-position direction)]
                  (if (maze.generate/wall? new-position (:maze board))
                    board
-                   (update-in board [:players socket :position] (constantly new-position))
-                   )))))))
+                   (update-in board [:players socket :position] (constantly new-position))))))
+      (write-help socket))))
 
 (defn winner?
   [{players :players
