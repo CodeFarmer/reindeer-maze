@@ -12,7 +12,7 @@
 (defn count-steps-west
   [row initial-x]
   (count-steps-east (reverse row)
-                     (- (dec (count row)) initial-x)))
+                    (- (dec (count row)) initial-x)))
 
 (defn possible-moves
   [maze [x y :as point]]
@@ -47,19 +47,17 @@
   (cond
    (and (= x1 x2)
         (= y1 y2)) :hit
-   (and (not= x1 x2)
-        (not= y1 y2)) nil
-   
-   (= y1 y2) (let [moves (possible-moves maze [x1 y1])]
-               (cond
-                (<= 0 (- x2 x1) (:east moves)) :east
-                (<= 0 (- x1 x2) (:west moves)) :west
-                ))
-   (= x1 x2) (let [moves (possible-moves maze [x1 y1])]
-               (cond
-                (<= 0 (- y1 y2) (:north moves)) :north
-                (<= 0 (- y2 y1) (:south moves)) :south
-                ))))
+        (and (not= x1 x2)
+             (not= y1 y2)) nil
+
+             (= y1 y2) (let [moves (possible-moves maze [x1 y1])]
+                         (cond
+                          (<= 0 (- x2 x1) (:east moves)) :east
+                          (<= 0 (- x1 x2) (:west moves)) :west))
+             (= x1 x2) (let [moves (possible-moves maze [x1 y1])]
+                         (cond
+                          (<= 0 (- y1 y2) (:north moves)) :north
+                          (<= 0 (- y2 y1) (:south moves)) :south))))
 
 (defn wall-coordinates
   [maze]
