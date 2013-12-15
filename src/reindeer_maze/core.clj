@@ -262,8 +262,8 @@
 
     (try
       (writeln socket (formatted-possible-moves-for-player socket))
+
       (while true
-        
         ;; Handle response.
         (maze-request-handler socket (read-from socket))
         (handle-scoring)
@@ -279,9 +279,9 @@
   (in-thread
    (let [server-socket (ServerSocket. port)]
      (until (.isClosed server-socket)
-            (let [socket (.accept server-socket)]
-              (in-thread
-               (client-handler socket))))
+       (let [socket (.accept server-socket)]
+         (in-thread
+          (client-handler socket))))
      server-socket)))
 
 (defn -main
