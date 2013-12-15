@@ -93,7 +93,7 @@
       (fill r g b 200)
       (stroke 0)
       (quil-dot x y size))
-    
+
     ;; Legend
     (doseq [[index [_ {[r g b] :color
                        points :points
@@ -216,14 +216,15 @@
   (let [{maze :maze
          players :players
          present-position :present-position} @current-board
-         player-position (get-in players [socket :position])] 
+         player-position (get-in players [socket :position])]
     (merge (possible-moves maze player-position)
            {:present-direction (path-between player-position present-position maze )})))
 
 (defn formatted-possible-moves-for-player
   [socket]
   (let [{:keys [north south east west present-direction]} (possible-moves-for-player socket)]
-    (format "N%d E%d S%d W%d P%s" north east south west
+    (format "N%d E%d S%d W%d P%s"
+            north east south west
             (case present-direction
               :north "N"
               :south "S"
@@ -286,7 +287,7 @@
 
 (defn -main
   ([] (println "USAGE: lein run <port>"))
-  
+
   ([port-number-as-string]
      (let [port-number (edn/read-string port-number-as-string)]
        (assert (int port-number))
