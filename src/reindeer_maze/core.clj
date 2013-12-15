@@ -19,8 +19,6 @@
             [reindeer-maze.util :refer [indexed make-odd in-thread until]])
   (:import [java.net ServerSocket]))
 
-(def sleep-time-ms 100)
-
 (def current-board
   "The board is the state of a single game."
   (atom {:maze []
@@ -253,7 +251,9 @@
 (defn client-handler
   [socket]
   (writeln socket "Language/team name?")
-  (let [name (read-from socket)]
+
+  (let [sleep-time-ms 100
+        name (read-from socket)]
     ;; Join maze
     (join-maze! socket name)
 
