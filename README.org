@@ -16,6 +16,14 @@ telnet localhost 8080
 
 ...will act as a simple client, so you can connect and explore.
 
+You can also set the size of the maze, using:
+
+#+BEGIN_SRC sh
+lein run 8080 50 10
+#+END_SRC
+
+...for a maze 50 squares wide, 10 high.
+
 ** Status
 
 Rougher than the surface of a Scotch Egg. I hacked this together in a
