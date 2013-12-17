@@ -2,6 +2,10 @@
 
 The game server used in the [[http://www.meetup.com/West-London-Hack-Night/][West London Hack Night]] [[http://www.meetup.com/West-London-Hack-Night/events/149097322/][Xmas Special, 2013]].
 
+** Thrilling Action Shot
+
+[[action_shot.png]]
+
 ** Running
 
 #+BEGIN_SRC sh
