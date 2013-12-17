@@ -1,6 +1,6 @@
 (ns reindeer-maze.core
   (:require [clojure.edn :as edn]
-            [clojure.string :refer [join trim lower-case]]
+            [clojure.string :refer [join trim upper-case]]
             [maze.generate :refer [generate-maze]]
             [quil.applet :refer [defapplet]]
             [quil.core :refer [background create-font ellipse
@@ -16,46 +16,116 @@
             [reindeer-maze.render :refer [quil-block
                                           quil-dot
                                           quil-tree]]
-            [reindeer-maze.util :refer [indexed make-odd in-thread until]])
+            [reindeer-maze.util :refer [indexed make-odd in-thread until fmap]])
   (:import [java.net ServerSocket]))
 
-(def current-board
-  "The board is the state of a single game."
-  (atom {:maze []
-         :players {}}))
+(defprotocol GameToken
+  (move [player movement])
+  (randomize-position [player maze]))
 
-(defn scramble-player-positions
-  [board]
-  (let [{maze :maze
-         players :players} board]
-    (merge board
-           {:players (apply merge (for [[socket data] players]
-                                    (do
-                                      (writeln socket "NEW MAZE!")
-                                      {socket (update-in data [:position] (fn [_]
-                                                                            (random-free-position maze)))})))})))
+(defprotocol NetworkPlayer
+  (receive-message [player])
+  (send-message [player str])
+  (disconnect [player]))
 
-(defn new-board!
-  [size]
-  (swap! current-board
-         (fn [board]
-           (let [center (map (fn [x] (make-odd (int (/ x 2))))
-                             size)
-                 maze (generate-maze size center)]
-             (-> board
-                 (merge {:maze maze
-                         :present-position center})
-                 scramble-player-positions))))
-  :ok)
+(defrecord Player
+    [socket name position color])
 
+(extend-type Player
+  GameToken
+  (move [player movement]
+    (update-in player [:position]
+               #(map + % movement)))
+  (randomize-position [player maze]
+    (merge player
+           {:position (random-free-position maze)})))
 
-(defn quil-setup []
-  (smooth)
-  (text-font (create-font "Courier New-Bold" 22 true))
-  (frame-rate 5)
-  (background 200)
+(extend-type Player
+  NetworkPlayer
+  (receive-message [player]
+    (read-from (:socket player)))
 
-  (set-state! :board #'current-board))
+  (send-message [player str]
+    (writeln (:socket player) str))
+
+  (disconnect [player]
+    (.close (:socket player))))
+
+(defprotocol MazeGame
+  (new-maze [game-state size])
+  (join-game [game-state player])
+  (leave-game [game-state player])
+  (possible-moves-for-player [game-state player])
+  (valid-move? [game-state player movement])
+  (move-player [game-state player movement])
+  (randomize-player-positions [game-state]))
+
+(defrecord GameState
+    [maze goal-position players])
+
+(extend-type GameState
+  MazeGame
+  (new-maze
+    [game-state size]
+    (let [center (map (fn [x] (make-odd (int (/ x 2))))
+                      size)
+          new-maze (generate-maze size center)]
+      (-> game-state
+          (merge
+           {:goal-position center
+            :maze new-maze})
+          randomize-player-positions)))
+
+  (join-game
+    [game-state player]
+    (let [{maze :maze} game-state]
+      (update-in game-state
+                 [:players]
+                 merge {(:socket player) player})))
+
+  (leave-game
+    [game-state player]
+    (update-in game-state
+               [:players]
+               (fn [players]
+                 (disconnect player)
+                 (dissoc players (:socket player)))))
+
+  (possible-moves-for-player
+    [game-state player]
+    (let [{:keys [maze goal-position players]} game-state
+          player (players (:socket player))]
+      (merge (possible-moves maze (:position player))
+             {:goal-direction (path-between (:position player) goal-position maze)})))
+
+  (valid-move?
+    [game-state player movement]
+    (let [maze (:maze game-state)
+          position (:position player)
+          [new-x new-y] (map + position movement)]
+      (nil? (get-in maze [new-y new-x]))))
+  
+  (move-player
+    [game-state player movement]
+    (if (valid-move? game-state player movement)
+      (update-in game-state [:players (:socket player)]
+                 move movement)
+      game-state))
+
+  (randomize-player-positions
+    [game-state]
+    (update-in game-state [:players]
+               #(fmap % randomize-position (:maze game-state)))))
+
+(defn make-quil-setup
+  [game-state-atom]
+  (fn []
+    (smooth)
+    (text-font (create-font "Courier New-Bold" 22 true))
+    (frame-rate 5)
+    (background 200)
+
+    (set-state! :board game-state-atom)))
 
 (defn quil-draw
   []
@@ -66,15 +136,16 @@
 
   (let [{maze :maze
          players :players
-         [present-x present-y] :present-position
-         :as board} (deref (deref (state :board)))
+         server :server
+         [goal-x goal-y] :goal-position
+         :as board} (deref (state :board))
          size (min
                (int (/ (width) (count (first maze))))
                (int (/ (height) (+ (count maze) 5))))]
 
-    ;; Treasure at the present
+    ;; Treasure at the goal
     (fill 249 244 38 128)
-    (quil-block present-x present-y size)
+    (quil-block goal-x goal-y size)
 
     ;; Walls
     (fill 37 167 25)
@@ -106,45 +177,9 @@
     ;; Instructions
     (fill 0)
     (stroke 0)
-    (text (format "rdcp://%s:%d/" (my-ip) 8080)
+    (text (format "rdcp://%s:%d/" (my-ip) (.getLocalPort server))
           size
           (* size (+ 1 (count maze))))))
-
-(defn join-maze!
-  [socket name]
-  (do
-    (swap! current-board
-           (fn [{maze :maze
-                :as board}]
-             (update-in board [:players]
-                        merge {socket {:name name
-                                       :color (first (shuffle palette))
-                                       :position (random-free-position maze)}})))
-    :ok))
-
-(defn find-player-by-name
-  [board the-name]
-  (first (filter (fn [[socket {name :name}]]
-                   (= name the-name))
-                 (:players board))))
-
-(defn leave-maze!
-  [socket]
-  (swap! current-board
-         (fn [{maze :maze
-              :as board}]
-           (update-in board [:players]
-                      dissoc socket)))
-  (.close socket))
-
-(defn kill-player-by-name!
-  [board name]
-  (leave-maze! (first (find-player-by-name board name))))
-
-(defn kill-all-players!
-  []
-  (doseq [[socket _] (:players @current-board)]
-    (leave-maze! socket)))
 
 (def help-text
   (join "\n"
@@ -164,58 +199,33 @@
          "going straight on to the next."
          "===="]))
 
-(defn write-help
-  [socket]
-  (writeln socket help-text))
-
 (defn command-to-movement
   [request]
-  (case (-> request
-            trim
-            lower-case)
-    "n" [0 -1]
-    "s" [0 1]
-    "e" [1 0]
-    "w" [-1 0]
-    nil))
+  (if request
+    (case (-> request
+              trim
+              upper-case)
+      "N" [0 -1]
+      "S" [0 1]
+      "E" [1 0]
+      "W" [-1 0]
+      nil)))
 
 (defn maze-request-handler
   "Takes a string request (which may be nil), and applies it."
-  [socket request]
-  (if request
-    (if-let [direction (command-to-movement request)]
-      (swap! current-board
-             (fn [board]
-               (let [current-position (get-in board [:players socket :position])
-                     new-position (map + current-position direction)]
-                 (if (maze.generate/wall? new-position (:maze board))
-                   board
-                   (update-in board [:players socket :position] (constantly new-position))))))
-      (write-help socket))))
+  [game-state-atom player command]
+  (when command
+    (if-let [movement (command-to-movement command)]
+      (swap! game-state-atom
+             move-player player movement)
+      (send-message player help-text))))
 
-(defn winner?
-  [{players :players
-    present-position :present-position
-    :as board}]
-  (filter (fn [[socket {position :position}]]
-            (= position present-position))
-          players))
-
-(defn possible-moves-for-player
-  [socket]
-  (let [{maze :maze
-         players :players
-         present-position :present-position} @current-board
-         player-position (get-in players [socket :position])]
-    (merge (possible-moves maze player-position)
-           {:present-direction (path-between player-position present-position maze )})))
-
-(defn formatted-possible-moves-for-player
-  [socket]
-  (let [{:keys [north south east west present-direction]} (possible-moves-for-player socket)]
+(defn format-possible-moves
+  [moves]
+  (let [{:keys [north south east west goal-direction]} moves]
     (format "N%d E%d S%d W%d P%s"
             north east south west
-            (case present-direction
+            (case goal-direction
               :north "N"
               :south "S"
               :west "W"
@@ -224,52 +234,79 @@
               "?"))))
 
 (defn client-handler
-  [socket]
+  [game-state-atom socket]
   (writeln socket "Language/team name?")
 
   (let [sleep-time-ms 100
-        name (read-from socket)]
+        name (read-from socket)
+        random-color (first (shuffle palette))
+        new-player (-> (->Player socket name nil random-color)
+                   (randomize-position (:maze @game-state-atom)))]
+
     ;; Join maze
-    (join-maze! socket name)
+    (swap! game-state-atom join-game new-player)
 
     (try
-      (writeln socket (formatted-possible-moves-for-player socket))
+      (send-message new-player (format-possible-moves (possible-moves-for-player @game-state-atom new-player)))
 
-      (while true
-        ;; Handle response.
-        (maze-request-handler socket (read-from socket))
-        (writeln socket (formatted-possible-moves-for-player socket))
+      (loop [player new-player]
+        
+        ;; Handle Command
+        (let [command (receive-message player)
+              movement (command-to-movement command)]
+          (if movement
+            (swap! game-state-atom
+                   move-player player movement)
+            (send-message player help-text)))
+        
+        ;; The player's state has now (probably) changed, due to a move. Look up the current player.
+        (let [moved-player (get-in @game-state-atom [:players (:socket player)])]
+          (send-message moved-player
+                        (format-possible-moves (possible-moves-for-player @game-state-atom moved-player)))
 
-        ;; Sleep
-        (Thread/sleep sleep-time-ms))
+          ;; Sleep
+          (Thread/sleep sleep-time-ms)
+          (recur moved-player)))
       (catch Exception e
-        (leave-maze! socket)))))
+        (swap! game-state-atom leave-game new-player)))))
 
 (defn create-server
-  [& {:keys [port client-handler]}]
-  (in-thread
-   (let [server-socket (ServerSocket. port)]
+  [game-state-atom & {:keys [port client-handler]}]
+  (let [server-socket (ServerSocket. port)]
+    (in-thread
      (until (.isClosed server-socket)
        (let [socket (.accept server-socket)]
          (in-thread
-          (client-handler socket))))
-     server-socket)))
+          (client-handler game-state-atom socket)))))
+    server-socket))
 
 (defn -main
-  ([] (println "USAGE: lein run <port>"))
+  ([] (println "USAGE: lein run <port> [<width> <height>]"))
 
-  ([port-number-as-string]
-     (let [port-number (edn/read-string port-number-as-string)]
+  ([port-number-as-string] (-main port-number-as-string "31" "31"))
+
+  ([port-number-as-string width-as-string height-as-string]
+     (let [port-number (edn/read-string port-number-as-string)
+           width (make-odd (edn/read-string width-as-string))
+           height (make-odd (edn/read-string height-as-string))]
        (assert (int port-number))
 
-       (new-board! [21 31])
+       (let [game-state-atom (atom (->GameState nil nil nil))
 
-       (let [server (create-server :port port-number
-                                   :client-handler #'client-handler)]
+             server          (create-server game-state-atom
+                                            :port port-number
+                                            :client-handler #'client-handler)
 
-         (defapplet reindeer-maze
-           :title "Reindeer Maze"
-           :size [1000 750]
-           :setup quil-setup
-           :draw quil-draw
-           :on-close (fn [] (.stop server)))))))
+             applet          (defapplet reindeer-maze
+                               :title "Reindeer Maze"
+                               :size [1000 750]
+                               :setup (make-quil-setup game-state-atom)
+                               :draw quil-draw
+                               :on-close (fn [] (.stop server)))]
+         (doto game-state-atom
+           (swap!
+            (fn [game-state]
+              (-> game-state
+                  (new-maze [width height])
+                  (assoc :server server)
+                  (assoc :applet applet)))))))))

@@ -1,16 +1,24 @@
 (ns reindeer-maze.util)
 
 (defn indexed
+  "Given a collection, return ([0 _] [1 _] [2 _])."
   [coll]
   (map vector (range) coll))
 
 (defn make-odd
+  "Given a number, make it an odd number."
   [x]
   {:post [(odd? %)]}
   (let [x-int (int x)]
     (if (odd? x-int)
       x-int
       (inc x-int))))
+
+(defn fmap
+  "Apply a function to all the values in a map."
+  [m f & args]
+  (into {} (for [[k v] m]
+             [k (apply f v args)])))
 
 (defmacro in-thread
   [& body]
