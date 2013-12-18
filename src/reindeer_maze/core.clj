@@ -1,26 +1,16 @@
 (ns reindeer-maze.core
   (:require [clojure.string :refer [join trim upper-case]]
             [maze.generate :refer [generate-maze]]
-            [quil.applet :refer [applet applet-close]]
-            [quil.core :refer [background create-font ellipse fill
-                               frame-rate height rect set-state! smooth
-                               state stroke text text-font width]]
+            [quil.applet :refer [applet-close]]
             [reindeer-maze.color :refer [palette]]
             [reindeer-maze.navigation :refer [path-between
                                               possible-moves
-                                              random-free-position
-                                              wall-coordinates]]
-            [reindeer-maze.net :refer [my-ip read-from writeln]]
-            [reindeer-maze.render :refer [quil-block
-                                          quil-dot
-                                          quil-tree]]
-            [reindeer-maze.util :refer [fmap
-                                        str-to-int
-                                        in-thread
-                                        indexed
-                                        make-odd
-                                        until]])
-  (:import [java.net ServerSocket SocketException]))
+                                              random-free-position]]
+            [reindeer-maze.net :refer [create-network-server
+                                       read-from
+                                       writeln]]
+            [reindeer-maze.render :refer :all]
+            [reindeer-maze.util :refer [fmap make-odd str-to-int]]))
 
 (defprotocol GameToken
   (move [player movement])
@@ -120,70 +110,6 @@
     (update-in game-state [:players]
                #(fmap % randomize-position (:maze game-state)))))
 
-(defn make-quil-setup
-  [game-state-atom]
-  (fn []
-    (smooth)
-    (text-font (create-font "Courier New-Bold" 22 true))
-    (frame-rate 5)
-    (background 200)
-
-    (set-state! :board game-state-atom)))
-
-(defn quil-draw
-  []
-  ;; Background
-  (fill 255)
-  (stroke 200)
-  (rect 0 0 (width) (height))
-
-  (let [{maze :maze
-         players :players
-         port-number :port-number
-         [goal-x goal-y] :goal-position
-         :as board} (deref (state :board))
-         size (min
-               (int (/ (width) (count (first maze))))
-               (int (/ (height) (+ (count maze) 5))))]
-
-    ;; Treasure at the goal
-    (fill 249 244 38 128)
-    (quil-block goal-x goal-y size)
-
-    ;; Walls
-    (fill 37 167 25)
-    (doseq [[x y] (wall-coordinates maze)]
-      (quil-tree x y size))
-
-    ;; Players
-    (doseq [[_ {[x y] :position
-                [r g b] :color}] players]
-      (fill r g b 200)
-      (stroke 0)
-      (quil-dot x y size))
-
-    ;; Legend
-    (doseq [[index [_ {[r g b] :color
-                       name :name}]] (indexed players)]
-      (let [dot-offset-x (+ size (* (quot index 3) 300))
-            dot-offset-y (* size (+ 2 (rem index 3) (count maze)))
-            text-offset-x (+ size dot-offset-x)
-            text-offset-y dot-offset-y]
-        (fill r g b)
-        (stroke 0)
-        (ellipse dot-offset-x
-                 dot-offset-y
-                 size
-                 size)
-        (text name text-offset-x text-offset-y)))
-
-    ;; Instructions
-    (fill 0)
-    (stroke 0)
-
-    (text (format "rdcp://%s:%d/" (my-ip) port-number)
-          size
-          (* size (+ 1 (count maze))))))
 
 (def help-text
   (join "\n"
@@ -266,18 +192,6 @@
       (catch Exception e
         (swap! game-state-atom leave-game new-player)))))
 
-(defn create-network-server
-  [game-state-atom & {:keys [port client-handler]}]
-  (let [server-socket (ServerSocket. port)]
-    (in-thread
-     (try
-       (until (.isClosed server-socket)
-         (let [socket (.accept server-socket)]
-           (in-thread
-            (client-handler game-state-atom socket))))
-       (catch SocketException e (println e))))
-    server-socket))
-
 (def system nil)
 
 (defn start
@@ -296,10 +210,7 @@
                                                                 :port port-number
                                                                 :client-handler #'client-handler)
 
-                         :applet (applet :title "Reindeer Maze"
-                                         :size screen-size
-                                         :setup (make-quil-setup game-state-atom)
-                                         :draw quil-draw)
+                         :applet (create-applet game-state-atom screen-size)
 
                          :game-state game-state-atom})))))
 

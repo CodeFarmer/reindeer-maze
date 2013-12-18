@@ -1,6 +1,7 @@
 (ns reindeer-maze.net
-  (:import [java.io BufferedReader InputStreamReader OutputStream]
-           [java.net Socket InetAddress]))
+  (:require [reindeer-maze.util :refer [in-thread until]])
+  (:import (java.io BufferedReader InputStreamReader OutputStream)
+           (java.net InetAddress ServerSocket Socket SocketException)))
 
 (defprotocol IWritable
   (write-to [this str]))
@@ -32,3 +33,15 @@
   []
   (-> (InetAddress/getLocalHost)
       .getHostAddress))
+
+(defn create-network-server
+  [game-state-atom & {:keys [port client-handler]}]
+  (let [server-socket (ServerSocket. port)]
+    (in-thread
+     (try
+       (until (.isClosed server-socket)
+         (let [socket (.accept server-socket)]
+           (in-thread
+            (client-handler game-state-atom socket))))
+       (catch SocketException e (println e))))
+    server-socket))
