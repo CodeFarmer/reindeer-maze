@@ -1,4 +1,5 @@
-(ns reindeer-maze.util)
+(ns reindeer-maze.util
+  (:require [clojure.edn :as edn]))
 
 (defn indexed
   "Given a collection, return ([0 _] [1 _] [2 _])."
@@ -33,3 +34,8 @@
      (when (not ~test)
        ~@body
        (recur))))
+
+(defn str-to-int
+  [str]
+  {:post [(int %)]}
+  (edn/read-string str))

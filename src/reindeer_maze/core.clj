@@ -1,23 +1,26 @@
 (ns reindeer-maze.core
-  (:require [clojure.edn :as edn]
-            [clojure.string :refer [join trim upper-case]]
+  (:require [clojure.string :refer [join trim upper-case]]
             [maze.generate :refer [generate-maze]]
-            [quil.applet :refer [defapplet]]
-            [quil.core :refer [background create-font ellipse
-                               fill frame-rate height rect set-state!
-                               smooth state stroke text text-font
-                               width]]
+            [quil.applet :refer [applet applet-close]]
+            [quil.core :refer [background create-font ellipse fill
+                               frame-rate height rect set-state! smooth
+                               state stroke text text-font width]]
             [reindeer-maze.color :refer [palette]]
             [reindeer-maze.navigation :refer [path-between
                                               possible-moves
                                               random-free-position
                                               wall-coordinates]]
-            [reindeer-maze.net :refer [read-from writeln my-ip]]
+            [reindeer-maze.net :refer [my-ip read-from writeln]]
             [reindeer-maze.render :refer [quil-block
                                           quil-dot
                                           quil-tree]]
-            [reindeer-maze.util :refer [indexed make-odd in-thread until fmap]])
-  (:import [java.net ServerSocket]))
+            [reindeer-maze.util :refer [fmap
+                                        str-to-int
+                                        in-thread
+                                        indexed
+                                        make-odd
+                                        until]])
+  (:import [java.net ServerSocket SocketException]))
 
 (defprotocol GameToken
   (move [player movement])
@@ -104,7 +107,7 @@
           position (:position player)
           [new-x new-y] (map + position movement)]
       (nil? (get-in maze [new-y new-x]))))
-  
+
   (move-player
     [game-state player movement]
     (if (valid-move? game-state player movement)
@@ -136,7 +139,7 @@
 
   (let [{maze :maze
          players :players
-         server :server
+         port-number :port-number
          [goal-x goal-y] :goal-position
          :as board} (deref (state :board))
          size (min
@@ -177,7 +180,8 @@
     ;; Instructions
     (fill 0)
     (stroke 0)
-    (text (format "rdcp://%s:%d/" (my-ip) (.getLocalPort server))
+
+    (text (format "rdcp://%s:%d/" (my-ip) port-number)
           size
           (* size (+ 1 (count maze))))))
 
@@ -211,15 +215,6 @@
       "W" [-1 0]
       nil)))
 
-(defn maze-request-handler
-  "Takes a string request (which may be nil), and applies it."
-  [game-state-atom player command]
-  (when command
-    (if-let [movement (command-to-movement command)]
-      (swap! game-state-atom
-             move-player player movement)
-      (send-message player help-text))))
-
 (defn format-possible-moves
   [moves]
   (let [{:keys [north south east west goal-direction]} moves]
@@ -233,6 +228,7 @@
               :hit "X"
               "?"))))
 
+;; TODO Tidy
 (defn client-handler
   [game-state-atom socket]
   (writeln socket "Language/team name?")
@@ -241,7 +237,7 @@
         name (read-from socket)
         random-color (first (shuffle palette))
         new-player (-> (->Player socket name nil random-color)
-                   (randomize-position (:maze @game-state-atom)))]
+                       (randomize-position (:maze @game-state-atom)))]
 
     ;; Join maze
     (swap! game-state-atom join-game new-player)
@@ -250,7 +246,7 @@
       (send-message new-player (format-possible-moves (possible-moves-for-player @game-state-atom new-player)))
 
       (loop [player new-player]
-        
+
         ;; Handle Command
         (let [command (receive-message player)
               movement (command-to-movement command)]
@@ -258,7 +254,7 @@
             (swap! game-state-atom
                    move-player player movement)
             (send-message player help-text)))
-        
+
         ;; The player's state has now (probably) changed, due to a move. Look up the current player.
         (let [moved-player (get-in @game-state-atom [:players (:socket player)])]
           (send-message moved-player
@@ -270,43 +266,67 @@
       (catch Exception e
         (swap! game-state-atom leave-game new-player)))))
 
-(defn create-server
+(defn create-network-server
   [game-state-atom & {:keys [port client-handler]}]
   (let [server-socket (ServerSocket. port)]
     (in-thread
-     (until (.isClosed server-socket)
-       (let [socket (.accept server-socket)]
-         (in-thread
-          (client-handler game-state-atom socket)))))
+     (try
+       (until (.isClosed server-socket)
+         (let [socket (.accept server-socket)]
+           (in-thread
+            (client-handler game-state-atom socket))))
+       (catch SocketException e (println e))))
     server-socket))
+
+(def system nil)
+
+(defn start
+  "Sets the whole system running."
+  [port-number screen-size maze-size]
+  (alter-var-root #'system
+                  (fn [system]
+                    (when (nil? system)
+                      (println "Starting up.")
+
+                      (let [game-state-atom (atom (-> (->GameState nil nil nil)
+                                                      (new-maze maze-size)
+                                                      (merge {:port-number port-number})))]
+
+                        {:network-server (create-network-server game-state-atom
+                                                                :port port-number
+                                                                :client-handler #'client-handler)
+
+                         :applet (applet :title "Reindeer Maze"
+                                         :size screen-size
+                                         :setup (make-quil-setup game-state-atom)
+                                         :draw quil-draw)
+
+                         :game-state game-state-atom})))))
+
+(defn stop
+  "Stops the whole system."
+  []
+  (alter-var-root #'system
+                  (fn [system]
+                    (when system
+                      (println "Shutting down." system)
+                      (.close (:network-server system))
+                      (applet-close (:applet system))
+                      nil))))
+
+(defn restart
+  "Restarts the whole system."
+  [port-number screen-size maze-size]
+  (stop)
+  (start port-number screen-size maze-size))
 
 (defn -main
   ([] (println "USAGE: lein run <port> [<width> <height>]"))
 
-  ([port-number-as-string] (-main port-number-as-string "31" "31"))
+  ([port-number] (-main port-number "31" "23"))
 
-  ([port-number-as-string width-as-string height-as-string]
-     (let [port-number (edn/read-string port-number-as-string)
-           width (make-odd (edn/read-string width-as-string))
-           height (make-odd (edn/read-string height-as-string))]
-       (assert (int port-number))
-
-       (let [game-state-atom (atom (->GameState nil nil nil))
-
-             server          (create-server game-state-atom
-                                            :port port-number
-                                            :client-handler #'client-handler)
-
-             applet          (defapplet reindeer-maze
-                               :title "Reindeer Maze"
-                               :size [1000 750]
-                               :setup (make-quil-setup game-state-atom)
-                               :draw quil-draw
-                               :on-close (fn [] (.stop server)))]
-         (doto game-state-atom
-           (swap!
-            (fn [game-state]
-              (-> game-state
-                  (new-maze [width height])
-                  (assoc :server server)
-                  (assoc :applet applet)))))))))
+  ([port-number width height]
+     (start (str-to-int port-number)
+            [800 600]
+            [(str-to-int width)
+             (str-to-int height)])))
